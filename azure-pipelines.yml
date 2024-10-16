@@ -1,0 +1,43 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    steps:
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '2.x'
+        installationPath: $(Agent.ToolsDirectory)/dotnet
+    - script: |
+        dotnet build --configuration $(buildConfiguration)
+      displayName: 'Build project'
+
+- stage: Deploy
+  jobs:
+  - deployment: Deploy
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureResourceManagerTemplateDeployment@3
+            inputs:
+              deploymentScope: 'Resource Group'
+              azureResourceManagerConnection: '<ServiceConnection>'
+              subscriptionId: '<SubscriptionId>'
+              action: 'Create Or Update Resource Group'
+              resourceGroupName: '<ResourceGroupName>'
+              location: '<Location>'
+              templateLocation: 'Linked artifact'
+              csmFile: '$(Pipeline.Workspace)/_$(Build.DefinitionName)/drop/azuredeploy.json'
+              csmParametersFile: '$(Pipeline.Workspace)/_$(Build.DefinitionName)/drop/azuredeploy.parameters.json'
+              deploymentMode: 'Incremental'
